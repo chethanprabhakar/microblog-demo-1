@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from datetime import datetime, timezone, timedelta
 import unittest
+from flask import template_rendered
 from app import create_app, db
 from app.models import User, Post
 from config import Config
@@ -10,6 +11,8 @@ class TestConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite://'
     ELASTICSEARCH_URL = None
+    WTF_CSRF_ENABLED = False
+    POSTS_PER_PAGE = 2
 
 
 class UserModelCase(unittest.TestCase):
@@ -100,6 +103,46 @@ class UserModelCase(unittest.TestCase):
         self.assertEqual(f2, [p2, p3])
         self.assertEqual(f3, [p3, p4])
         self.assertEqual(f4, [p4])
+
+
+class UserProfileCase(unittest.TestCase):
+    def setUp(self):
+        self.app = create_app(TestConfig)
+        self.app_context = self.app.app_context()
+        self.app_context.push()
+        db.create_all()
+        self.client = self.app.test_client()
+        self.rendered = []
+        template_rendered.connect(self._record, self.app)
+
+    def tearDown(self):
+        template_rendered.disconnect(self._record, self.app)
+        db.session.remove()
+        db.drop_all()
+        self.app_context.pop()
+
+    def _record(self, sender, template, context, **extra):
+        self.rendered.append((template, context))
+
+    def _add_user_with_posts(self, username, count):
+        u = User(username=username, email=f'{username}@example.com')
+        u.set_password('cat')
+        now = datetime.now(timezone.utc)
+        db.session.add(u)
+        db.session.add_all([Post(body=f'post {i}', author=u,
+                                 timestamp=now + timedelta(seconds=i))
+                            for i in range(count)])
+        db.session.commit()
+
+    def test_user_profile_post_count(self):
+        self._add_user_with_posts('john', 3)
+        self._add_user_with_posts('susan', 1)
+        self.client.post('/auth/login',
+                         data={'username': 'john', 'password': 'cat'})
+        response = self.client.get('/user/john')
+        contexts = [c for t, c in self.rendered if t.name == 'user.html']
+        self.assertEqual(contexts[-1]['post_count'], 3)
+        self.assertIn('3 posts', response.get_data(as_text=True))
 
 
 if __name__ == '__main__':
