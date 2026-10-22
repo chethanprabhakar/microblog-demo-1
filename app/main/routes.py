@@ -84,7 +84,8 @@ def user(username):
     form = EmptyForm()
     return render_template('user.html', user=user, posts=posts.items,
                            next_url=next_url, prev_url=prev_url, form=form,
-                           post_count=user.posts_count())
+                           post_count=user.posts_count(),
+                           join_date=user.join_date)
 
 
 @bp.route('/user/<username>/popup')
