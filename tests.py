@@ -2,6 +2,7 @@
 from datetime import datetime, timezone, timedelta
 import unittest
 from flask import template_rendered
+import sqlalchemy as sa
 from app import create_app, db
 from app.models import User, Post
 from config import Config
@@ -143,6 +144,28 @@ class UserProfileCase(unittest.TestCase):
         contexts = [c for t, c in self.rendered if t.name == 'user.html']
         self.assertEqual(contexts[-1]['post_count'], 3)
         self.assertIn('3 posts', response.get_data(as_text=True))
+
+    def test_join_date_default(self):
+        self._add_user_with_posts('john', 0)
+        u = db.session.scalar(sa.select(User).where(User.username == 'john'))
+        self.assertIsNotNone(u.join_date)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        self.assertLess(abs(now - u.join_date), timedelta(seconds=5))
+
+    def test_profile_shows_join_date(self):
+        joined = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        u = User(username='john', email='john@example.com', join_date=joined)
+        u.set_password('cat')
+        db.session.add(u)
+        db.session.commit()
+        self.client.post('/auth/login',
+                         data={'username': 'john', 'password': 'cat'})
+        response = self.client.get('/user/john')
+        contexts = [c for t, c in self.rendered if t.name == 'user.html']
+        self.assertEqual(contexts[-1]['join_date'].replace(tzinfo=None),
+                         joined.replace(tzinfo=None))
+        self.assertIn('Joined on January 1, 2024',
+                      response.get_data(as_text=True))
 
 
 if __name__ == '__main__':

@@ -105,6 +105,8 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
     about_me: so.Mapped[Optional[str]] = so.mapped_column(sa.String(140))
     last_seen: so.Mapped[Optional[datetime]] = so.mapped_column(
         default=lambda: datetime.now(timezone.utc))
+    join_date: so.Mapped[Optional[datetime]] = so.mapped_column(
+        default=lambda: datetime.now(timezone.utc))
     last_message_read_time: so.Mapped[Optional[datetime]]
     token: so.Mapped[Optional[str]] = so.mapped_column(
         sa.String(32), index=True, unique=True)
