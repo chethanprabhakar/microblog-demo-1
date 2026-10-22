@@ -1,0 +1,9 @@
+{
+  "name": "microblog",
+  "version": "0.23.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "venv/bin/python -m unittest tests"
+  }
+}
