@@ -129,6 +129,8 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
     tasks: so.WriteOnlyMapped['Task'] = so.relationship(back_populates='user')
     comments: so.WriteOnlyMapped['Comment'] = so.relationship(
         back_populates='author')
+    likes: so.WriteOnlyMapped['Like'] = so.relationship(
+        back_populates='user')
 
     def __repr__(self):
         return '<User {}>'.format(self.username)
@@ -299,6 +301,8 @@ class Post(SearchableMixin, db.Model):
     author: so.Mapped[User] = so.relationship(back_populates='posts')
     comments: so.WriteOnlyMapped['Comment'] = so.relationship(
         back_populates='post')
+    likes: so.WriteOnlyMapped['Like'] = so.relationship(
+        back_populates='post')
 
     def __repr__(self):
         return '<Post {}>'.format(self.body)
@@ -328,6 +332,55 @@ class Comment(db.Model):
             'content': self.content,
             'created_at': self.created_at.isoformat() + 'Z',
         }
+
+
+class Like(db.Model):
+    __table_args__ = (sa.UniqueConstraint('user_id', 'post_id'),)
+    id: so.Mapped[int] = so.mapped_column(primary_key=True)
+    user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey(User.id),
+                                               index=True)
+    post_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey(Post.id),
+                                               index=True)
+    created_at: so.Mapped[datetime] = so.mapped_column(
+        index=True, default=lambda: datetime.now(timezone.utc))
+
+    user: so.Mapped[User] = so.relationship(back_populates='likes')
+    post: so.Mapped[Post] = so.relationship(back_populates='likes')
+
+    def __repr__(self):
+        return '<Like user={} post={}>'.format(self.user_id, self.post_id)
+
+    @classmethod
+    def find(cls, user, post):
+        return db.session.scalar(sa.select(cls).where(
+            cls.user_id == user.id, cls.post_id == post.id))
+
+    @classmethod
+    def create_like(cls, user, post):
+        like = cls.find(user, post)
+        if like is None:
+            like = cls(user=user, post=post)
+            db.session.add(like)
+        return like
+
+    @classmethod
+    def get_likes_by_user(cls, user):
+        return list(db.session.scalars(
+            sa.select(cls).where(cls.user_id == user.id)))
+
+    @classmethod
+    def get_likes_by_post(cls, post):
+        return list(db.session.scalars(
+            sa.select(cls).where(cls.post_id == post.id)))
+
+    @classmethod
+    def toggle_like(cls, user, post):
+        like = cls.find(user, post)
+        if like is not None:
+            db.session.delete(like)
+            return False
+        cls.create_like(user, post)
+        return True
 
 
 class Message(db.Model):
