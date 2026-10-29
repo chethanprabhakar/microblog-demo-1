@@ -15,6 +15,13 @@
                     username=user_link, when=moment(post.timestamp).fromNow()) }}
                 <br>
                 <span id="post{{ post.id }}">{{ post.body }}</span>
+                {% set like_count = post.query.session.scalars(post.likes.select()).all()|length %}
+                <br>
+                <span id="likes{{ post.id }}" class="small text-muted"{% if current_user.is_authenticated %} data-like-url="{{ url_for('main.post_likes', post_id=post.id) }}"{% endif %}>{{ ngettext('%(num)d like', '%(num)d likes', like_count) }}</span>
+                {% if current_user.is_authenticated %}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-2"
+                        onclick="toggleLike({{ post.id }})">{{ _('Like') }}/{{ _('Unlike') }}</button>
+                {% endif %}
                 {% if post.language and post.language != g.locale %}
                 <br><br>
                 <span id="translation{{ post.id }}">
@@ -28,3 +35,36 @@
             </td>
         </tr>
     </table>
+    <script>
+      window.toggleLike = window.toggleLike || async function(postId) {
+        const span = document.getElementById('likes' + postId);
+        const unavailable = '{{ _('Likes unavailable') }}';
+        try {
+          const response = await fetch('/posts/' + postId + '/like', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json; charset=utf-8'}
+          });
+          const data = await response.json();
+          if (!response.ok || typeof data.like_count !== 'number') {
+            throw new Error('missing like_count');
+          }
+          span.innerText = data.like_count + (data.like_count === 1 ? ' like' : ' likes');
+        } catch (e) {
+          span.innerText = unavailable;
+        }
+      };
+      (async function() {
+        const span = document.getElementById('likes{{ post.id }}');
+        if (!span.dataset.likeUrl) { return; }
+        try {
+          const response = await fetch(span.dataset.likeUrl);
+          const data = await response.json();
+          if (!response.ok || typeof data.like_count !== 'number') {
+            throw new Error('missing like_count');
+          }
+          span.innerText = data.like_count + (data.like_count === 1 ? ' like' : ' likes');
+        } catch (e) {
+          span.innerText = '{{ _('Likes unavailable') }}';
+        }
+      })();
+    </script>
