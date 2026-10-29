@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from flask import render_template, flash, redirect, url_for, request, g, \
-    current_app
+    current_app, jsonify
 from flask_login import current_user, login_required
 from flask_babel import _, get_locale
 import sqlalchemy as sa
@@ -8,7 +8,7 @@ from langdetect import detect, LangDetectException
 from app import db
 from app.main.forms import EditProfileForm, EmptyForm, PostForm, SearchForm, \
     MessageForm
-from app.models import User, Post, Message, Notification
+from app.models import User, Post, Message, Notification, Like
 from app.translate import translate
 from app.main import bp
 
@@ -239,3 +239,47 @@ def notifications():
         'data': n.get_data(),
         'timestamp': n.timestamp
     } for n in notifications]
+
+
+def toggle_like(post):
+    """Toggle current_user's like on post; return the new liked state."""
+    try:
+        liked = Like.toggle_like(current_user, post)
+        db.session.commit()
+    except sa.exc.SQLAlchemyError:
+        db.session.rollback()
+        raise
+    return liked
+
+
+def like_state(post, liked):
+    return {'post_id': post.id, 'liked': liked,
+            'like_count': len(Like.get_likes_by_post(post))}
+
+
+@bp.route('/posts/<int:post_id>/like', methods=['POST'])
+@login_required
+def like_post(post_id):
+    """Toggle the current user's like on a post.
+
+    POST /posts/<post_id>/like
+    Parameters: post_id (int, in path). Login required (anonymous: 302).
+    Responses: 200 state JSON, 404 unknown post, 500 {"error": ...}.
+
+    Like:   {"post_id": 3, "liked": true, "like_count": 1}
+    Unlike: {"post_id": 3, "liked": false, "like_count": 0}
+    """
+    post = db.first_or_404(sa.select(Post).where(Post.id == post_id))
+    try:
+        liked = toggle_like(post)
+    except sa.exc.SQLAlchemyError:
+        return jsonify({'error': 'Could not update like'}), 500
+    return jsonify(like_state(post, liked))
+
+
+@bp.route('/posts/<int:post_id>/likes')
+@login_required
+def post_likes(post_id):
+    """GET /posts/<post_id>/likes: {"post_id", "like_count", "liked"}."""
+    post = db.first_or_404(sa.select(Post).where(Post.id == post_id))
+    return jsonify(like_state(post, Like.find(current_user, post) is not None))

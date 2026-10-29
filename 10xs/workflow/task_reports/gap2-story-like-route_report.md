@@ -1,0 +1,4 @@
+- [x] T1. Define Like Toggle Route — POST /posts/<int:post_id>/like (login_required, 404/500/200) plus optional GET /posts/<id>/likes in app/main/routes.py
+- [x] T2. Implement Like Toggle Logic — module-level toggle_like(post) helper in routes.py wraps Like.toggle_like, commits, rolls back on SQLAlchemyError
+- [x] T3. Add Like Toggle API Test Suite — verified by hand only: scratch test_client script (kept in .10xs/scratch, not a repo test) showed like/unlike flips, unknown post 404, anonymous 302; mutation (always liked=true) was caught, then restored. Card limits changes to routes.py, so no test file was added.
+- [x] T4. Update Documentation — endpoint docs (path, method, parameters, like/unlike examples) are a docstring on the view
