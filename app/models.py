@@ -127,6 +127,8 @@ class User(PaginatedAPIMixin, UserMixin, db.Model):
     notifications: so.WriteOnlyMapped['Notification'] = so.relationship(
         back_populates='user')
     tasks: so.WriteOnlyMapped['Task'] = so.relationship(back_populates='user')
+    comments: so.WriteOnlyMapped['Comment'] = so.relationship(
+        back_populates='author')
 
     def __repr__(self):
         return '<User {}>'.format(self.username)
@@ -295,9 +297,37 @@ class Post(SearchableMixin, db.Model):
     language: so.Mapped[Optional[str]] = so.mapped_column(sa.String(5))
 
     author: so.Mapped[User] = so.relationship(back_populates='posts')
+    comments: so.WriteOnlyMapped['Comment'] = so.relationship(
+        back_populates='post')
 
     def __repr__(self):
         return '<Post {}>'.format(self.body)
+
+
+class Comment(db.Model):
+    id: so.Mapped[int] = so.mapped_column(primary_key=True)
+    post_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey(Post.id),
+                                               index=True)
+    user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey(User.id),
+                                               index=True)
+    content: so.Mapped[str] = so.mapped_column(sa.String(1000))
+    created_at: so.Mapped[datetime] = so.mapped_column(
+        index=True, default=lambda: datetime.now(timezone.utc))
+
+    post: so.Mapped[Post] = so.relationship(back_populates='comments')
+    author: so.Mapped[User] = so.relationship(back_populates='comments')
+
+    def __repr__(self):
+        return '<Comment {}>'.format(self.content)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'post_id': self.post_id,
+            'author': self.author.username,
+            'content': self.content,
+            'created_at': self.created_at.isoformat() + 'Z',
+        }
 
 
 class Message(db.Model):
