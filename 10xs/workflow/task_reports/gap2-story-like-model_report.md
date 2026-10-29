@@ -1,0 +1,6 @@
+- [x] T1. Create Like model class in app/models.py — Like (id, user_id, post_id FKs indexed, created_at, UniqueConstraint(user_id, post_id)); Like.user <-> User.likes and Like.post <-> Post.likes (WriteOnlyMapped).
+- [x] T2. Add Like model to database schema migration — deferred: card may only change app/models.py. Owner of migrations/ should run `flask db migrate -m "likes"`. Verified instead that db.create_all() builds the `like` table.
+- [x] T3. Add methods to Like model for creating and retrieving likes — create_like (returns existing, else adds without committing), get_likes_by_user, get_likes_by_post, plus toggle_like (True if now liked).
+- [x] T4. Update database initialization to include Like model — deferred/no change needed: the model is in app/models.py, so db.create_all() in setUp builds it.
+
+Notes: tests 4/4 pass; new likes.test.py 5/5 pass (run: `venv/bin/python likes.test.py`). Mutation: removed UniqueConstraint → scratch check showed 2 rows for the same user/post instead of the constraint rejecting the duplicate; code restored and green again. With it restored, a duplicate raises IntegrityError. app/models.py was already over 100 lines and cannot be split since only that file may change.
