@@ -32,10 +32,77 @@
                                 '{{ g.locale }}');">{{ _('Translate') }}</a>
                 </span>
                 {% endif %}
+                {% set post_comments = post.query.session.scalars(post.comments.select()).all() %}
+                {% set comment_count = post_comments|length %}
+                <br>
+                <span id="commentcount{{ post.id }}" class="small text-muted">{{ ngettext('%(num)d comment', '%(num)d comments', comment_count) }}</span>
+                <div id="comments{{ post.id }}" class="mt-2">
+                    {% for comment in post_comments %}
+                    <div class="bg-light border-start p-2 mb-1">
+                        <strong class="small">{{ comment.author.username }}</strong>
+                        <span class="small text-muted">{{ moment(comment.created_at).fromNow() }}</span>
+                        <div class="small">{{ comment.content }}</div>
+                    </div>
+                    {% else %}
+                    <span class="small text-muted">{{ _('No comments yet') }}</span>
+                    {% endfor %}
+                </div>
             </td>
         </tr>
     </table>
     <script>
+      window.formatCommentCount = window.formatCommentCount || function(n) {
+        return n + (n === 1 ? ' comment' : ' comments');
+      };
+      window.commentElement = window.commentElement || function(c) {
+        const box = document.createElement('div');
+        box.className = 'bg-light border-start p-2 mb-1';
+        const author = document.createElement('strong');
+        author.className = 'small';
+        author.textContent = c.author + ' ';
+        const when = document.createElement('span');
+        when.className = 'small text-muted';
+        when.textContent = new Date(c.created_at).toLocaleString();
+        const body = document.createElement('div');
+        body.className = 'small';
+        body.textContent = c.content;
+        box.append(author, when, body);
+        return box;
+      };
+      window.loadComments = window.loadComments || async function(postId) {
+        const div = document.getElementById('comments' + postId);
+        try {
+          const response = await fetch('/posts/' + postId + '/comments');
+          const data = await response.json();
+          if (!response.ok || !Array.isArray(data.comments)) {
+            throw new Error('bad comments payload');
+          }
+          div.replaceChildren(...data.comments.map(window.commentElement));
+          document.getElementById('commentcount' + postId).textContent =
+            window.formatCommentCount(data.comments.length);
+        } catch (e) {
+          div.textContent = '{{ _('Could not load comments') }}';
+        }
+      };
+      window.addComment = window.addComment || async function(postId, content) {
+        const div = document.getElementById('comments' + postId);
+        try {
+          const response = await fetch('/posts/' + postId + '/comments', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json; charset=utf-8'},
+            body: JSON.stringify({content: content})
+          });
+          const comment = await response.json();
+          if (!response.ok) { throw new Error('post failed'); }
+          const count = div.querySelectorAll('.border-start').length + 1;
+          if (count === 1) { div.replaceChildren(); }
+          div.appendChild(window.commentElement(comment));
+          document.getElementById('commentcount' + postId).textContent =
+            window.formatCommentCount(count);
+        } catch (e) {
+          div.appendChild(document.createTextNode('{{ _('Could not load comments') }}'));
+        }
+      };
       window.toggleLike = window.toggleLike || async function(postId) {
         const span = document.getElementById('likes' + postId);
         const unavailable = '{{ _('Likes unavailable') }}';
