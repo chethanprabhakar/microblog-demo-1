@@ -1,0 +1,4 @@
+- [x] T1. Define comment route — POST /posts/<int:post_id>/comments, login_required, in app/main/routes.py; Comment imported from app.models
+- [x] T2. Validate comment data — content required, 1-1000 chars after strip, mismatched author gives 400 JSON error; 404 for unknown post
+- [x] T3. Integrate with model — save_comment helper creates Comment(post, author=current_user), commits, rolls back on SQLAlchemyError
+- [x] T4. HTTP responses — 201 with Comment.to_dict(), 400/404 JSON errors, 500 on DB error. Verified by hand with a throwaway test_client script in /tmp (201, 400 empty, 400 at 1001, 404, 400 author mismatch); mutation 1000→10 turned the valid 50-char input from 201 into 400, then restored. Card limits changes to routes.py, so no test file was added; unittest suite green.
