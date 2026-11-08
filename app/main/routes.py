@@ -8,7 +8,7 @@ from langdetect import detect, LangDetectException
 from app import db
 from app.main.forms import EditProfileForm, EmptyForm, PostForm, SearchForm, \
     MessageForm
-from app.models import User, Post, Message, Notification, Like
+from app.models import User, Post, Message, Notification, Like, Comment
 from app.translate import translate
 from app.main import bp
 
@@ -283,3 +283,51 @@ def post_likes(post_id):
     """GET /posts/<post_id>/likes: {"post_id", "like_count", "liked"}."""
     post = db.first_or_404(sa.select(Post).where(Post.id == post_id))
     return jsonify(like_state(post, Like.find(current_user, post) is not None))
+
+
+def comment_payload():
+    data = request.get_json(silent=True) or request.form
+    return data if hasattr(data, 'get') else {}
+
+
+def comment_error(payload):
+    """Return an error message for an invalid comment payload, else None."""
+    content = payload.get('content')
+    if not isinstance(content, str) or not content.strip():
+        return 'content is required'
+    if len(content.strip()) > 1000:
+        return 'content must be 1 to 1000 characters'
+    author = payload.get('author')
+    if author is not None and author != current_user.username:
+        return 'author does not match the logged-in user'
+    return None
+
+
+def save_comment(post, content):
+    comment = Comment(post=post, author=current_user, content=content)
+    try:
+        db.session.add(comment)
+        db.session.commit()
+    except sa.exc.SQLAlchemyError:
+        db.session.rollback()
+        return None
+    return comment
+
+
+@bp.route('/posts/<int:post_id>/comments', methods=['POST'])
+@login_required
+def create_comment(post_id):
+    """POST /posts/<post_id>/comments with {"content": "...", "author"?}.
+
+    Responses: 201 comment JSON, 400 {"error"}, 404 unknown post,
+    500 {"error"}. The author is always the logged-in user.
+    """
+    post = db.first_or_404(sa.select(Post).where(Post.id == post_id))
+    payload = comment_payload()
+    error = comment_error(payload)
+    if error:
+        return jsonify({'error': error}), 400
+    comment = save_comment(post, payload['content'].strip())
+    if comment is None:
+        return jsonify({'error': 'Could not save comment'}), 500
+    return jsonify(comment.to_dict()), 201
